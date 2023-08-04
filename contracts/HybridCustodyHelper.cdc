@@ -91,6 +91,71 @@ pub contract HybridCustodyHelper {
         manager.addAccount(cap: childAccountCap)
     }
 
+    /// Borrow the AuthAccount of child account from the manager, if the child account is not found, return nil
+    ///
+    pub fun borrowChildAuthAccount(
+        _ managerAcct: &AuthAccount,
+        _ childAddress: Address,
+    ): &AuthAccount? {
+        post {
+            result == nil || result?.address == childAddress: "Failed to borrow child account"
+        }
+
+        if let owned = self.borrowChildOwnedAccount(managerAcct, childAddress) {
+            return owned.borrowAccount()
+        }
+        return nil
+    }
+
+    /// Borrow the OwnedAccount of child account from the manager, if the child account is not found, return nil
+    ///
+    pub fun borrowChildOwnedAccount(
+        _ managerAcct: &AuthAccount,
+        _ childAddress: Address,
+    ): &AnyResource{HybridCustody.OwnedAccountPrivate, HybridCustody.OwnedAccountPublic, MetadataViews.Resolver}? {
+        // >>> [0] Ensure the manager resource exists
+        self.ensureManagerExists(managerAcct)
+
+        // >>> [1] borrow owned account from manager
+        let manager = managerAcct.borrow<&HybridCustody.Manager{HybridCustody.ManagerPublic, HybridCustody.ManagerPrivate}>(from: HybridCustody.ManagerStoragePath)
+        if manager == nil {
+            return nil
+        }
+        return manager!.borrowOwnedAccount(addr: childAddress)
+    }
+
+    /// Borrow the ChildAccount of child account from the manager, if the child account is not found, return nil
+    ///
+    pub fun borrowChildAccount(
+        _ managerAcct: &AuthAccount,
+        _ childAddress: Address,
+    ): &AnyResource{HybridCustody.AccountPrivate, HybridCustody.AccountPublic, MetadataViews.Resolver}? {
+        // >>> [0] Ensure the manager resource exists
+        self.ensureManagerExists(managerAcct)
+
+        // >>> [1] borrow owned account from manager
+        let manager = managerAcct.borrow<&HybridCustody.Manager{HybridCustody.ManagerPublic, HybridCustody.ManagerPrivate}>(from: HybridCustody.ManagerStoragePath)
+        if manager == nil {
+            return nil
+        }
+        return manager!.borrowAccount(addr: childAddress)
+    }
+
+    /// Borrow the ChildAccountPublic of child account from the manager, if the child account is not found, return nil
+    ///
+    pub fun borrowChildAccountPublic(
+        _ managerAddress: Address,
+        _ childAddress: Address,
+    ): &AnyResource{HybridCustody.AccountPublic, MetadataViews.Resolver}? {
+        // >>> [0] Borrow the manager public capability
+        let managerPubCap = getAccount(managerAddress).capabilities
+            .get<&HybridCustody.Manager{HybridCustody.ManagerPublic}>(HybridCustody.ManagerPublicPath)
+        if managerPubCap == nil || managerPubCap?.check() == false {
+            return nil
+        }
+        return managerPubCap!.borrow()!.borrowAccountPublic(addr: childAddress)
+    }
+
     /// Ensure the manager resource exists in the account
     ///
     pub fun ensureManagerExists(
