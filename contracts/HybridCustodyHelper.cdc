@@ -91,6 +91,8 @@ pub contract HybridCustodyHelper {
         manager.addAccount(cap: childAccountCap)
     }
 
+    // ------------ Borrow Children ------------
+
     /// Borrow the AuthAccount of child account from the manager, if the child account is not found, return nil
     ///
     pub fun borrowChildAuthAccount(
@@ -154,6 +156,105 @@ pub contract HybridCustodyHelper {
             return nil
         }
         return managerPubCap!.borrow()!.borrowAccountPublic(addr: childAddress)
+    }
+
+    // ------------ Capability setter ------------
+
+    /// Add the capability to the owned child account
+    ///
+    pub fun addCapabilityToOwnedChild(
+        _ managerAcct: &AuthAccount,
+        _ childAddress: Address,
+        capability: Capability,
+        isPublic: Bool
+    ) {
+        // >>> [0] Ensure the manager resource exists
+        self.ensureManagerExists(managerAcct)
+
+        // >>> [1] borrow owned account from manager
+        let manager = managerAcct.borrow<&HybridCustody.Manager{HybridCustody.ManagerPublic, HybridCustody.ManagerPrivate}>(from: HybridCustody.ManagerStoragePath)
+            ?? panic("Failed to borrow manager")
+
+        let owned = manager.borrowOwnedAccount(addr: childAddress)
+            ?? panic("The child address is not an owned account.")
+
+        owned.addCapabilityToDelegator(parent: managerAcct.address, cap: capability, isPublic: isPublic)
+    }
+
+    /// Remove the capability from the owned child account
+    ///
+    pub fun removeCapabilityFromOwnedChild(
+        _ managerAcct: &AuthAccount,
+        _ childAddress: Address,
+        capability: Capability,
+    ) {
+        // >>> [0] Ensure the manager resource exists
+        self.ensureManagerExists(managerAcct)
+
+        // >>> [1] borrow owned account from manager
+        let manager = managerAcct.borrow<&HybridCustody.Manager{HybridCustody.ManagerPublic, HybridCustody.ManagerPrivate}>(from: HybridCustody.ManagerStoragePath)
+            ?? panic("Failed to borrow manager")
+
+        let owned = manager.borrowOwnedAccount(addr: childAddress)
+            ?? panic("The child address is not an owned account.")
+
+        owned.removeCapabilityFromDelegator(parent: managerAcct.address, cap: capability)
+    }
+
+    // ------------ Fetching capability ------------
+
+    /// Fetch the public capability from the manager by Capability Factory
+    ///
+    pub fun getPublicCapabilityFromFactory(
+        _ managerAddress: Address,
+        _ childAddress: Address,
+        path: PublicPath,
+        type: Type
+    ): Capability? {
+        if let childPubRef = self.borrowChildAccountPublic(managerAddress, childAddress) {
+            return childPubRef.getPublicCapability(path: path, type: type)
+        }
+        return nil
+    }
+
+    /// Fetch the private/public capability from the manager by Capability Factory
+    ///
+    pub fun getCapabilityFromFactory(
+        _ managerAcct: &AuthAccount,
+        _ childAddress: Address,
+        path: CapabilityPath,
+        type: Type
+    ): Capability? {
+        if let childPrivRef = self.borrowChildAccount(managerAcct, childAddress) {
+            return childPrivRef.getCapability(path: path, type: type)
+        }
+        return nil
+    }
+
+    /// Fetch the public capability from the manager by Capability Delegator
+    ///
+    pub fun getPublicCapabilityFromDelegator(
+        _ managerAddress: Address,
+        _ childAddress: Address,
+        type: Type,
+    ): Capability? {
+        if let childPubRef = self.borrowChildAccountPublic(managerAddress, childAddress) {
+            return childPubRef.getPublicCapFromDelegator(type: type)
+        }
+        return nil
+    }
+
+    /// Fetch the private/public capability from the manager by Capability Delegator
+    ///
+    pub fun getCapabilityFromDelegator(
+        _ managerAcct: &AuthAccount,
+        _ childAddress: Address,
+        type: Type,
+    ): Capability? {
+        if let childPrivRef = self.borrowChildAccount(managerAcct, childAddress) {
+            return childPrivRef.getPrivateCapFromDelegator(type: type) ?? childPrivRef.getPublicCapFromDelegator(type: type)
+        }
+        return nil
     }
 
     /// Ensure the manager resource exists in the account
