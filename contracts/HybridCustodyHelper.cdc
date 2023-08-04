@@ -11,6 +11,86 @@ import "CapabilityFilter"
 ///
 pub contract HybridCustodyHelper {
 
+    // ------- Public Methods ------
+
+    /// Setup the child account for the manager
+    ///
+    /// - managerAcct: the account of the manager
+    /// - childAcctCap: the capability of the child account
+    ///
+    pub fun assignNewChild(
+        _ managerAcct: &AuthAccount,
+        _ childAcctCap: Capability<&AuthAccount>,
+    ) {
+        pre {
+            childAcctCap.check(): "Child account capability is invalid"
+        }
+        post {
+            // ensure child account can be borrowed from manager
+            managerAcct.borrow<&HybridCustody.Manager{HybridCustody.ManagerPublic}>(from: HybridCustody.ManagerStoragePath)?.borrowAccountPublic(addr: childAcctCap.address) != nil: "Failed to add child account"
+        }
+
+        // >>> [0] Ensure the manager resource exists
+
+        self.ensureManagerExists(managerAcct)
+
+        let manager = managerAcct.borrow<&HybridCustody.Manager{HybridCustody.ManagerPublic, HybridCustody.ManagerPrivate}>(from: HybridCustody.ManagerStoragePath)
+            ?? panic("Failed to borrow hybrid custody manager.")
+
+        let child = childAcctCap.borrow() ?? panic("Failed to borrow child account")
+
+        // >>> [1] Child: createOwnedAccount
+
+        if child.borrow<&HybridCustody.OwnedAccount>(from: HybridCustody.OwnedAccountStoragePath) == nil {
+            let ownedAccount <- HybridCustody.createOwnedAccount(acct: childAcctCap)
+            child.save(<-ownedAccount, to: HybridCustody.OwnedAccountStoragePath)
+        }
+
+        // publish to new public path
+        child.capabilities.unpublish(HybridCustody.OwnedAccountPublicPath)
+        let ownedChildCap = child.capabilities.storage
+            .issue<&HybridCustody.OwnedAccount{HybridCustody.BorrowableAccount, HybridCustody.OwnedAccountPublic, MetadataViews.Resolver}>(HybridCustody.OwnedAccountStoragePath)
+        child.capabilities.publish(ownedChildCap, at: HybridCustody.OwnedAccountPublicPath)
+
+        // >>> [2] Child: giveOwnership
+        let owned = child.borrow<&HybridCustody.OwnedAccount>(from: HybridCustody.OwnedAccountStoragePath)
+            ?? panic("owned not found in child account")
+        owned.giveOwnership(to: managerAcct.address)
+
+        // >>> [3] Manager: Accept OwnedAccount capablity and AddOwnedAccount
+
+        // generate inboxName by manager address
+        let ownedAccountInboxName = HybridCustody.getOwnerIdentifier(managerAcct.address)
+        let ownedAccountCap = managerAcct.inbox
+            .claim<&AnyResource{HybridCustody.OwnedAccountPrivate, HybridCustody.OwnedAccountPublic, MetadataViews.Resolver}>(ownedAccountInboxName, provider: child.address)
+            ?? panic("owned account cap not found")
+
+        manager.addOwnedAccount(cap: ownedAccountCap)
+
+        // >>> [4] Child: publishToParent
+
+        // get the owned acount reference again, but this time get from manager
+        let ownedChildFromManager = manager.borrowOwnedAccount(addr: child.address)
+            ?? panic("owned account not found from manager")
+
+        ownedChildFromManager.publishToParent(
+            parentAddress: managerAcct.address,
+            // The factory manager is used to fetch capabilities through capability factory
+            factory: self.fetchOrCreateCapabilityFactory(managerAcct),
+            // you can change the filter later, currently use allow all
+            filter: self.fetchOrCreateAllowAllCapabilityFilter(managerAcct),
+        )
+
+        // >>> [5] Manager: Accept ChildAccount capablity and AddAccount
+
+        let childAccountInboxName = HybridCustody.getChildAccountIdentifier(managerAcct.address)
+        let childAccountCap = managerAcct.inbox
+            .claim<&HybridCustody.ChildAccount{HybridCustody.AccountPrivate, HybridCustody.AccountPublic, MetadataViews.Resolver}>(childAccountInboxName, provider: child.address)
+            ?? panic("child account cap not found")
+
+        manager.addAccount(cap: childAccountCap)
+    }
+
     /// Ensure the manager resource exists in the account
     ///
     pub fun ensureManagerExists(
@@ -50,63 +130,6 @@ pub contract HybridCustodyHelper {
         // issue a new private capability
         return managerAcct.capabilities.storage
             .issue<&HybridCustody.Manager{HybridCustody.ManagerPublic, HybridCustody.ManagerPrivate}>(HybridCustody.ManagerStoragePath)
-    }
-
-    /// Setup the child account for the manager
-    ///
-    /// - managerAcct: the account of the manager
-    /// - accountManager: the account manager resource reference
-    /// - childAcctCap: the capability of the child account
-    ///
-    pub fun assignNewChild(
-        _ managerAcct: &AuthAccount,
-        _ childAcctCap: Capability<&AuthAccount>,
-    ) {
-        pre {
-            childAcctCap.check(): "Child account capability is invalid"
-        }
-        post {
-            managerAcct.borrow<&HybridCustody.Manager{HybridCustody.ManagerPublic}>(from: HybridCustody.ManagerStoragePath)?.borrowAccountPublic(addr: childAcctCap.address) != nil: "Failed to add child account"
-        }
-
-        // Ensure the manager resource exists
-        self.ensureManagerExists(managerAcct)
-
-        let manager = managerAcct.borrow<&HybridCustody.Manager{HybridCustody.ManagerPublic, HybridCustody.ManagerPrivate}>(from: HybridCustody.ManagerStoragePath)
-            ?? panic("Failed to borrow hybrid custody manager.")
-
-        let child = childAcctCap.borrow() ?? panic("Failed to borrow child account")
-
-        // Child: createOwnedAccount
-        if child.borrow<&HybridCustody.OwnedAccount>(from: HybridCustody.OwnedAccountStoragePath) == nil {
-            let ownedAccount <- HybridCustody.createOwnedAccount(acct: childAcctCap)
-            child.save(<-ownedAccount, to: HybridCustody.OwnedAccountStoragePath)
-        }
-
-        // publish to new public path
-        child.capabilities.unpublish(HybridCustody.OwnedAccountPublicPath)
-        let ownedChildCap = child.capabilities.storage
-            .issue<&HybridCustody.OwnedAccount{HybridCustody.BorrowableAccount, HybridCustody.OwnedAccountPublic, MetadataViews.Resolver}>(HybridCustody.OwnedAccountStoragePath)
-        child.capabilities.publish(ownedChildCap, at: HybridCustody.OwnedAccountPublicPath)
-
-        // Child: giveOwnership
-        let owned = child.borrow<&HybridCustody.OwnedAccount>(from: HybridCustody.OwnedAccountStoragePath)
-            ?? panic("owned not found")
-        owned.giveOwnership(to: managerAcct.address)
-
-        // Manager: Accept OwnedAccount capablity and AddOwnedAccount
-        // generate inboxName by manager address
-        let inboxName = HybridCustody.getOwnerIdentifier(managerAcct.address)
-        let ownedAccountCap = managerAcct.inbox
-            .claim<&AnyResource{HybridCustody.OwnedAccountPrivate, HybridCustody.OwnedAccountPublic, MetadataViews.Resolver}>(inboxName, provider: child.address)
-            ?? panic("owned account cap not found")
-
-        manager.addOwnedAccount(cap: ownedAccountCap)
-
-        // Child: publishToParent
-
-        // Account Manager: AddAccount
-
     }
 
     /// Fetch or create a capability factory capability
