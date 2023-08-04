@@ -1,0 +1,9 @@
+[submodule "modules/flow-utils"]
+	path = modules/flow-utils
+	url = https://github.com/Flowtyio/flow-utils.git
+[submodule "modules/flow-nft"]
+	path = modules/flow-nft
+	url = https://github.com/onflow/flow-nft.git
+[submodule "modules/hybrid-custody"]
+	path = modules/hybrid-custody
+	url = https://github.com/onflow/hybrid-custody.git
