@@ -309,12 +309,11 @@ pub contract HybridCustodyHelper {
 
         /// Issue the HybridCustody manager private capability
         ///
-        pub fun issueManagerPrivateCapability(
-            _ managerAcct: &AuthAccount
-        ): Capability<&HybridCustody.Manager{HybridCustody.ManagerPublic, HybridCustody.ManagerPrivate}> {
+        pub fun issueManagerPrivateCapability(): Capability<&HybridCustody.Manager{HybridCustody.ManagerPublic, HybridCustody.ManagerPrivate}> {
             post {
                 result.check(): "Failed to issue a new private capability"
             }
+            let managerAcct = self.borrowManagerAuthAccount()
             // issue a new private capability
             return managerAcct.capabilities.storage
                 .issue<&HybridCustody.Manager{HybridCustody.ManagerPublic, HybridCustody.ManagerPrivate}>(HybridCustody.ManagerStoragePath)
@@ -322,8 +321,7 @@ pub contract HybridCustodyHelper {
 
         /// Fetch or create a capability factory capability
         ///
-        pub fun fetchOrCreateCapabilityFactory(
-        ): Capability<&CapabilityFactory.Manager{CapabilityFactory.Getter}> {
+        pub fun fetchOrCreateCapabilityFactory(): Capability<&CapabilityFactory.Manager{CapabilityFactory.Getter}> {
             post {
                 result.check(): "CapabilityFactory is not setup properly"
             }
@@ -347,8 +345,7 @@ pub contract HybridCustodyHelper {
 
         /// Fetch or create the allow all filter capability
         ///
-        pub fun fetchOrCreateAllowAllCapabilityFilter(
-        ): Capability<&{CapabilityFilter.Filter}> {
+        pub fun fetchOrCreateAllowAllCapabilityFilter(): Capability<&{CapabilityFilter.Filter}> {
             post {
                 result.check() == true: "CapabilityFilter is not setup properly"
                 result.borrow()!.getType() == Type<@CapabilityFilter.AllowAllFilter>(): "CapabilityFilter in account is not AllowAll Filter"
@@ -358,8 +355,7 @@ pub contract HybridCustodyHelper {
 
         /// Fetch or create the allow list filter capability
         ///
-        pub fun fetchOrCreateAllowlistCapabilityFilter(
-        ): Capability<&{CapabilityFilter.Filter}> {
+        pub fun fetchOrCreateAllowlistCapabilityFilter(): Capability<&{CapabilityFilter.Filter}> {
             post {
                 result.check() == true: "CapabilityFilter is not setup properly"
                 result.borrow()!.getType() == Type<@CapabilityFilter.AllowlistFilter>(): "CapabilityFilter in account is not Allowlist Filter"
@@ -369,8 +365,7 @@ pub contract HybridCustodyHelper {
 
         /// Fetch or create the deny list filter capability
         ///
-        pub fun fetchOrCreateDenylistCapabilityFilter(
-        ): Capability<&{CapabilityFilter.Filter}> {
+        pub fun fetchOrCreateDenylistCapabilityFilter(): Capability<&{CapabilityFilter.Filter}> {
             post {
                 result.check() == true: "CapabilityFilter is not setup properly"
                 result.borrow()!.getType() == Type<&CapabilityFilter.DenylistFilter>(): "CapabilityFilter in account is not Denylist Filter"
@@ -382,9 +377,7 @@ pub contract HybridCustodyHelper {
 
         /// Fetch or create a capability filter capability
         ///
-        access(self) fun _fetchOrCreateCapabilityFilter(
-            _ t: Type
-        ): Capability<&{CapabilityFilter.Filter}> {
+        access(self) fun _fetchOrCreateCapabilityFilter(_ t: Type): Capability<&{CapabilityFilter.Filter}> {
             post {
                 result.check(): "CapabilityFilter is not setup properly"
             }
