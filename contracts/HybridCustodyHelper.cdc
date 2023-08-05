@@ -436,6 +436,16 @@ pub contract HybridCustodyHelper {
         }
     }
 
+    // ------ Public Methods ------
+
+    /// Create a new HybridCustody Wrapper
+    ///
+    pub fun createWrapper(
+        _ managerAcctCap: Capability<&AuthAccount>
+    ): @Wrapper {
+        return <- create Wrapper(managerAcctCap)
+    }
+
     // ----- Internal Methods -----
 
     /// Borrow the ChildAccountPublic of child account from the manager, if the child account is not found, return nil
