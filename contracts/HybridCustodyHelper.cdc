@@ -90,6 +90,13 @@ pub contract HybridCustodyHelper {
                 .issue<&HybridCustody.OwnedAccount{HybridCustody.BorrowableAccount, HybridCustody.OwnedAccountPublic, MetadataViews.Resolver}>(HybridCustody.OwnedAccountStoragePath)
             child.capabilities.publish(ownedChildCap, at: HybridCustody.OwnedAccountPublicPath)
 
+            // Compatible with older versions
+            // @deprecated
+            child.link<&HybridCustody.OwnedAccount{HybridCustody.BorrowableAccount, HybridCustody.OwnedAccountPublic, MetadataViews.Resolver}>(
+                HybridCustody.OwnedAccountPrivatePath,
+                target: HybridCustody.OwnedAccountStoragePath
+            )
+
             // >>> [2] Child: giveOwnership
             let owned = child.borrow<&HybridCustody.OwnedAccount>(from: HybridCustody.OwnedAccountStoragePath)
                 ?? panic("owned not found in child account")
