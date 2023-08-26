@@ -87,7 +87,7 @@ pub contract HybridCustodyHelper {
             // publish to new public path
             child.capabilities.unpublish(HybridCustody.OwnedAccountPublicPath)
             let ownedChildCap = child.capabilities.storage
-                .issue<&HybridCustody.OwnedAccount{HybridCustody.BorrowableAccount, HybridCustody.OwnedAccountPublic, MetadataViews.Resolver}>(HybridCustody.OwnedAccountStoragePath)
+                .issue<&HybridCustody.OwnedAccount{HybridCustody.OwnedAccountPublic, MetadataViews.Resolver}>(HybridCustody.OwnedAccountStoragePath)
             child.capabilities.publish(ownedChildCap, at: HybridCustody.OwnedAccountPublicPath)
 
             // Compatible with older versions
